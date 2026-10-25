@@ -1,6 +1,7 @@
 import os
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import cloudinary
 import cloudinary.api
@@ -9,7 +10,10 @@ from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
 
-# Configuración de Cloudinary: conserva las variables de entorno de Render.
+# Zona horaria de Chiapas, México.
+ZONA_HORARIA = ZoneInfo("America/Mexico_City")
+
+# Configuración de Cloudinary mediante las variables de entorno de Render.
 cloudinary.config(
     cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
     api_key=os.environ.get("CLOUDINARY_API_KEY"),
@@ -272,8 +276,8 @@ HTML = """
                 <p>
                     El lirio acuático (<em>Eichhornia crassipes</em>) es una
                     planta flotante que se reproduce rápidamente en ciertos
-                    cuerpos de agua. Aunque puede parecer inofensiva, su
-                    proliferación excesiva puede generar problemas ambientales.
+                    cuerpos de agua. Su proliferación excesiva puede generar
+                    problemas ambientales.
                 </p>
             </div>
 
@@ -289,7 +293,7 @@ HTML = """
 
                 <article class="tarjeta">
                     <div class="icono">💧</div>
-                    <h3>Se reproduce rápidamente</h3>
+                    <h3>Reproducción rápida</h3>
                     <p>
                         Cuando las condiciones son favorables, puede expandirse
                         y cubrir amplias zonas.
@@ -298,7 +302,7 @@ HTML = """
 
                 <article class="tarjeta">
                     <div class="icono">🔎</div>
-                    <h3>Es importante monitorearlo</h3>
+                    <h3>Monitoreo</h3>
                     <p>
                         Observar su presencia ayuda a identificar áreas que
                         requieren evaluación ambiental.
@@ -311,9 +315,9 @@ HTML = """
             <div class="introduccion">
                 <h2>Impacto ambiental</h2>
                 <p>
-                    Cuando el lirio acuático cubre una gran parte de un cuerpo
-                    de agua, puede alterar las condiciones necesarias para la
-                    vida acuática y dificultar el uso responsable del recurso.
+                    Cuando el lirio acuático cubre gran parte de un cuerpo de
+                    agua, puede alterar las condiciones necesarias para la
+                    vida acuática y dificultar algunos usos del recurso.
                 </p>
             </div>
 
@@ -322,8 +326,8 @@ HTML = """
                     <h3>🐟 Vida acuática</h3>
                     <p>
                         Las coberturas densas pueden reducir la entrada de luz
-                        y modificar los niveles de oxígeno disuelto, afectando
-                        a algunos organismos.
+                        y modificar el oxígeno disuelto, afectando a algunos
+                        organismos.
                     </p>
                 </article>
 
@@ -338,16 +342,16 @@ HTML = """
                 <article class="tarjeta">
                     <h3>🌎 Equilibrio ecológico</h3>
                     <p>
-                        La expansión excesiva puede cambiar las condiciones del
-                        hábitat y afectar el equilibrio del ecosistema.
+                        La expansión excesiva puede cambiar las condiciones
+                        del hábitat y afectar el equilibrio del ecosistema.
                     </p>
                 </article>
             </div>
 
             <div class="aviso">
                 <strong>Importante:</strong> la presencia de lirio no significa
-                por sí sola que el agua esté contaminada. Es necesario evaluar
-                cada sitio y sus condiciones ambientales.
+                por sí sola que el agua esté contaminada. Cada sitio requiere
+                una evaluación de sus condiciones ambientales.
             </div>
         </section>
 
@@ -357,8 +361,8 @@ HTML = """
                 <p>
                     Este proyecto utiliza un modelo de inteligencia artificial
                     YOLO11 para apoyar la detección visual del lirio acuático.
-                    Las fotografías capturadas se envían a una galería para
-                    facilitar su consulta y seguimiento.
+                    Las fotografías se envían a una galería para facilitar su
+                    consulta y seguimiento.
                 </p>
             </div>
 
@@ -383,7 +387,7 @@ HTML = """
                     <h3>3. Registro y consulta</h3>
                     <p>
                         Las fotografías se almacenan en la nube y se muestran
-                        en la galería pública del proyecto.
+                        en la galería pública.
                     </p>
                 </article>
             </div>
@@ -393,8 +397,9 @@ HTML = """
             <div class="introduccion">
                 <h2>Galería de detecciones</h2>
                 <p>
-                    Fotografías registradas por el sistema de monitoreo.
-                    Esta página se actualiza automáticamente cada 60 segundos.
+                    Fotografías registradas por el sistema. La página se
+                    actualiza automáticamente cada 60 segundos.
+                    Las horas se muestran en horario de Chiapas.
                 </p>
             </div>
 
@@ -431,8 +436,8 @@ HTML = """
                 <h2>Concientización ambiental</h2>
                 <p>
                     Cuidar los ecosistemas acuáticos es una responsabilidad
-                    compartida. La información y la prevención son pasos
-                    importantes para proteger el agua y la biodiversidad.
+                    compartida. La información y la prevención ayudan a
+                    proteger el agua y la biodiversidad.
                 </p>
             </div>
 
@@ -486,41 +491,55 @@ def obtener_fotos():
 
         for recurso in respuesta.get("resources", []):
             nombre = recurso.get("filename", "")
+            fecha = None
 
-            # Primero intenta obtener la fecha del nombre de la fotografía.
+            # Intentar obtener fecha y hora del nombre del archivo.
             coincidencia = re.search(
                 r"Lirio_(\d{8})_(\d{6})_(\d{6})",
                 nombre
             )
 
-            fecha_texto = "Fecha no disponible"
-
             if coincidencia:
                 try:
+                    # IMPORTANTE:
+                    # Esta fecha se interpreta como hora local de Chiapas.
                     fecha = datetime.strptime(
                         "_".join(coincidencia.groups()),
                         "%Y%m%d_%H%M%S_%f"
-                    )
-                    fecha_texto = fecha.strftime("%d/%m/%Y %H:%M:%S")
+                    ).replace(tzinfo=ZONA_HORARIA)
                 except ValueError:
-                    pass
+                    fecha = None
 
-            # Si no hay fecha válida en el nombre, utiliza la fecha de Cloudinary.
-            if fecha_texto == "Fecha no disponible":
+            # Si no hay fecha válida en el nombre, utilizar Cloudinary.
+            if fecha is None:
                 creada = recurso.get("created_at", "")
 
                 try:
                     fecha = datetime.fromisoformat(
                         creada.replace("Z", "+00:00")
                     )
-                    fecha_texto = fecha.strftime("%d/%m/%Y %H:%M:%S")
+
+                    if fecha.tzinfo is None:
+                        fecha = fecha.replace(
+                            tzinfo=ZoneInfo("UTC")
+                        )
+
+                    fecha = fecha.astimezone(ZONA_HORARIA)
+
                 except (ValueError, TypeError, AttributeError):
-                    pass
+                    fecha = None
+
+            if fecha is not None:
+                fecha_texto = fecha.strftime("%d/%m/%Y %I:%M:%S %p")
+                orden = fecha.timestamp()
+            else:
+                fecha_texto = "Fecha no disponible"
+                orden = 0
 
             fotos.append({
                 "url": recurso.get("secure_url", ""),
                 "fecha": fecha_texto,
-                "creada": recurso.get("created_at", "")
+                "creada": orden
             })
 
         fotos.sort(
@@ -531,7 +550,9 @@ def obtener_fotos():
         return fotos
 
     except Exception:
-        app.logger.exception("Error al obtener fotografías de Cloudinary")
+        app.logger.exception(
+            "Error al obtener fotografías de Cloudinary"
+        )
         return []
 
 
@@ -564,7 +585,9 @@ def recibir_deteccion():
     archivo = request.files.get("file") or request.files.get("imagen")
 
     if archivo is None:
-        return jsonify({"error": "No se recibió ninguna fotografía"}), 400
+        return jsonify({
+            "error": "No se recibió ninguna fotografía"
+        }), 400
 
     try:
         resultado = cloudinary.uploader.upload(
@@ -581,7 +604,9 @@ def recibir_deteccion():
 
     except Exception:
         app.logger.exception("Error al guardar la fotografía")
-        return jsonify({"error": "No se pudo guardar la fotografía"}), 500
+        return jsonify({
+            "error": "No se pudo guardar la fotografía"
+        }), 500
 
 
 @app.route("/api/detections", methods=["GET"])
