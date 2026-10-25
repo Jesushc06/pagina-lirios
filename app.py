@@ -1,17 +1,15 @@
 import os
 import re
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 import cloudinary
-import cloudinary.uploader
 import cloudinary.api
-
+import cloudinary.uploader
 from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
 
-# Credenciales: se configuran como variables de entorno
+# Configuración de Cloudinary: conserva las variables de entorno de Render.
 cloudinary.config(
     cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
     api_key=os.environ.get("CLOUDINARY_API_KEY"),
@@ -25,185 +23,567 @@ HTML = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="60">
-<title>Monitor de lirios acuáticos</title>
-<style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  background: #f1f7f2;
-  color: #183c2c;
-}
-header {
-  background: #176b48;
-  color: white;
-  padding: 28px 16px;
-  text-align: center;
-}
-main { max-width: 1100px; margin: auto; padding: 20px; }
-.galeria {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 18px;
-}
-.tarjeta {
-  background: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 3px 12px #0001;
-}
-.tarjeta img {
-  width: 100%;
-  height: 230px;
-  object-fit: cover;
-}
-.info { padding: 14px; }
-.fecha { color: #426b57; font-size: 14px; }
-a { color: #176b48; }
-footer { text-align: center; padding: 24px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="60">
+    <title>Proyecto Lirios Acuáticos</title>
+
+    <style>
+        :root {
+            --verde: #176b45;
+            --verde-oscuro: #104b32;
+            --verde-claro: #eaf6ee;
+            --azul: #eaf5fb;
+            --texto: #24352b;
+            --blanco: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            color: var(--texto);
+            background: #f7faf7;
+            line-height: 1.6;
+        }
+
+        header {
+            background: var(--verde-oscuro);
+            color: white;
+            padding: 16px 6%;
+        }
+
+        .marca {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        nav {
+            background: var(--verde);
+            padding: 12px 6%;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        .hero {
+            padding: 85px 7%;
+            color: white;
+            background:
+                linear-gradient(120deg, rgba(10, 65, 43, .94),
+                rgba(23, 107, 69, .79)),
+                linear-gradient(45deg, #247d53, #8bbf8b);
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            margin: 0 auto 20px;
+            max-width: 900px;
+            line-height: 1.15;
+        }
+
+        .hero p {
+            max-width: 760px;
+            margin: 0 auto 25px;
+            font-size: 1.15rem;
+        }
+
+        .boton {
+            display: inline-block;
+            background: white;
+            color: var(--verde-oscuro);
+            padding: 12px 22px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        section {
+            padding: 55px 7%;
+            scroll-margin-top: 70px;
+        }
+
+        section h2 {
+            color: var(--verde-oscuro);
+            font-size: 2rem;
+            margin-top: 0;
+        }
+
+        .introduccion {
+            max-width: 900px;
+            margin: auto;
+            text-align: center;
+        }
+
+        .fondo-verde {
+            background: var(--verde-claro);
+        }
+
+        .fondo-azul {
+            background: var(--azul);
+        }
+
+        .tarjetas {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 22px;
+            margin-top: 25px;
+        }
+
+        .tarjeta {
+            background: white;
+            padding: 24px;
+            border-radius: 14px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, .07);
+        }
+
+        .tarjeta h3 {
+            color: var(--verde);
+            margin-top: 0;
+        }
+
+        .icono {
+            font-size: 2rem;
+        }
+
+        .galeria {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 22px;
+            margin-top: 25px;
+        }
+
+        .foto {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, .08);
+        }
+
+        .foto img {
+            width: 100%;
+            height: 230px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .foto-info {
+            padding: 15px;
+            overflow-wrap: anywhere;
+        }
+
+        .fecha {
+            color: #5a6a60;
+            font-size: .9rem;
+        }
+
+        .sin-fotos {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .aviso {
+            background: #fff8df;
+            border-left: 5px solid #d8a528;
+            padding: 18px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        footer {
+            text-align: center;
+            background: var(--verde-oscuro);
+            color: white;
+            padding: 28px 6%;
+        }
+
+        footer p {
+            margin: 5px;
+        }
+
+        @media (max-width: 600px) {
+            nav {
+                gap: 12px;
+            }
+
+            nav a {
+                font-size: .85rem;
+            }
+
+            section {
+                padding: 40px 6%;
+            }
+
+            .hero {
+                padding: 60px 6%;
+            }
+        }
+    </style>
 </head>
+
 <body>
-<header>
-  <h1>Detección de lirios acuáticos</h1>
-  <p>Galería pública de fotografías detectadas mediante YOLO11</p>
-</header>
-<main>
-  <h2>Últimas detecciones</h2>
-  <p>Las fotografías se actualizan automáticamente cada minuto.</p>
-  {% if fotos %}
-  <section class="galeria">
-    {% for foto in fotos %}
-    <article class="tarjeta">
-      <a href="{{ foto.url }}" target="_blank" rel="noopener">
-        <img src="{{ foto.url }}" alt="Fotografía de detección de lirio acuático"
-             loading="lazy">
-      </a>
-      <div class="info">
-        <strong>Lirio acuático</strong>
-        <p class="fecha">Fecha y hora: {{ foto.fecha }}</p>
-      </div>
-    </article>
-    {% endfor %}
-  </section>
-  {% else %}
-  <p>Aún no hay fotografías disponibles.</p>
-  {% endif %}
-</main>
-<footer>Proyecto de monitoreo de lirios acuáticos</footer>
+    <header>
+        <div class="marca">🌿 Proyecto Lirios Acuáticos</div>
+    </header>
+
+    <nav>
+        <a href="#inicio">Inicio</a>
+        <a href="#conoce">Conoce el lirio</a>
+        <a href="#impacto">Impacto ambiental</a>
+        <a href="#proyecto">Nuestro proyecto</a>
+        <a href="#galeria">Detecciones</a>
+        <a href="#concientizacion">Concientización</a>
+    </nav>
+
+    <main>
+        <section class="hero" id="inicio">
+            <h1>Protejamos nuestros cuerpos de agua</h1>
+            <p>
+                Utilizamos tecnología de visión artificial para detectar
+                lirios acuáticos y promover el cuidado de nuestros ecosistemas.
+            </p>
+            <a class="boton" href="#galeria">Ver fotografías detectadas</a>
+        </section>
+
+        <section id="conoce">
+            <div class="introduccion">
+                <h2>¿Qué es el lirio acuático?</h2>
+                <p>
+                    El lirio acuático (<em>Eichhornia crassipes</em>) es una
+                    planta flotante que se reproduce rápidamente en ciertos
+                    cuerpos de agua. Aunque puede parecer inofensiva, su
+                    proliferación excesiva puede generar problemas ambientales.
+                </p>
+            </div>
+
+            <div class="tarjetas">
+                <article class="tarjeta">
+                    <div class="icono">🌱</div>
+                    <h3>Planta flotante</h3>
+                    <p>
+                        Crece sobre la superficie del agua y puede formar
+                        grandes agrupaciones.
+                    </p>
+                </article>
+
+                <article class="tarjeta">
+                    <div class="icono">💧</div>
+                    <h3>Se reproduce rápidamente</h3>
+                    <p>
+                        Cuando las condiciones son favorables, puede expandirse
+                        y cubrir amplias zonas.
+                    </p>
+                </article>
+
+                <article class="tarjeta">
+                    <div class="icono">🔎</div>
+                    <h3>Es importante monitorearlo</h3>
+                    <p>
+                        Observar su presencia ayuda a identificar áreas que
+                        requieren evaluación ambiental.
+                    </p>
+                </article>
+            </div>
+        </section>
+
+        <section class="fondo-verde" id="impacto">
+            <div class="introduccion">
+                <h2>Impacto ambiental</h2>
+                <p>
+                    Cuando el lirio acuático cubre una gran parte de un cuerpo
+                    de agua, puede alterar las condiciones necesarias para la
+                    vida acuática y dificultar el uso responsable del recurso.
+                </p>
+            </div>
+
+            <div class="tarjetas">
+                <article class="tarjeta">
+                    <h3>🐟 Vida acuática</h3>
+                    <p>
+                        Las coberturas densas pueden reducir la entrada de luz
+                        y modificar los niveles de oxígeno disuelto, afectando
+                        a algunos organismos.
+                    </p>
+                </article>
+
+                <article class="tarjeta">
+                    <h3>🚣 Uso del agua</h3>
+                    <p>
+                        La acumulación de plantas puede dificultar la navegación,
+                        la pesca y algunas actividades comunitarias.
+                    </p>
+                </article>
+
+                <article class="tarjeta">
+                    <h3>🌎 Equilibrio ecológico</h3>
+                    <p>
+                        La expansión excesiva puede cambiar las condiciones del
+                        hábitat y afectar el equilibrio del ecosistema.
+                    </p>
+                </article>
+            </div>
+
+            <div class="aviso">
+                <strong>Importante:</strong> la presencia de lirio no significa
+                por sí sola que el agua esté contaminada. Es necesario evaluar
+                cada sitio y sus condiciones ambientales.
+            </div>
+        </section>
+
+        <section id="proyecto">
+            <div class="introduccion">
+                <h2>Nuestro proyecto</h2>
+                <p>
+                    Este proyecto utiliza un modelo de inteligencia artificial
+                    YOLO11 para apoyar la detección visual del lirio acuático.
+                    Las fotografías capturadas se envían a una galería para
+                    facilitar su consulta y seguimiento.
+                </p>
+            </div>
+
+            <div class="tarjetas">
+                <article class="tarjeta">
+                    <h3>1. Captura de imágenes</h3>
+                    <p>
+                        Una cámara obtiene fotografías del entorno que se desea
+                        monitorear.
+                    </p>
+                </article>
+
+                <article class="tarjeta">
+                    <h3>2. Detección con IA</h3>
+                    <p>
+                        El modelo analiza las imágenes para identificar lirios
+                        según su entrenamiento.
+                    </p>
+                </article>
+
+                <article class="tarjeta">
+                    <h3>3. Registro y consulta</h3>
+                    <p>
+                        Las fotografías se almacenan en la nube y se muestran
+                        en la galería pública del proyecto.
+                    </p>
+                </article>
+            </div>
+        </section>
+
+        <section class="fondo-azul" id="galeria">
+            <div class="introduccion">
+                <h2>Galería de detecciones</h2>
+                <p>
+                    Fotografías registradas por el sistema de monitoreo.
+                    Esta página se actualiza automáticamente cada 60 segundos.
+                </p>
+            </div>
+
+            {% if fotos %}
+                <div class="galeria">
+                    {% for foto in fotos %}
+                        <article class="foto">
+                            <a href="{{ foto.url }}" target="_blank"
+                               rel="noopener noreferrer">
+                                <img src="{{ foto.url }}"
+                                     alt="Fotografía de una detección de lirio acuático"
+                                     loading="lazy">
+                            </a>
+                            <div class="foto-info">
+                                <strong>Detección registrada</strong>
+                                <div class="fecha">{{ foto.fecha }}</div>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="sin-fotos">
+                    <h3>Aún no hay fotografías</h3>
+                    <p>
+                        Cuando el detector envíe nuevas imágenes, aparecerán
+                        aquí automáticamente.
+                    </p>
+                </div>
+            {% endif %}
+        </section>
+
+        <section id="concientizacion">
+            <div class="introduccion">
+                <h2>Concientización ambiental</h2>
+                <p>
+                    Cuidar los ecosistemas acuáticos es una responsabilidad
+                    compartida. La información y la prevención son pasos
+                    importantes para proteger el agua y la biodiversidad.
+                </p>
+            </div>
+
+            <div class="tarjetas">
+                <article class="tarjeta">
+                    <h3>💧 Cuida el agua</h3>
+                    <p>
+                        Evita arrojar basura, aceites o sustancias contaminantes
+                        a ríos, lagos y otros cuerpos de agua.
+                    </p>
+                </article>
+
+                <article class="tarjeta">
+                    <h3>📢 Comparte información</h3>
+                    <p>
+                        Promueve la educación ambiental y comunica los problemas
+                        observados a las autoridades correspondientes.
+                    </p>
+                </article>
+
+                <article class="tarjeta">
+                    <h3>🌿 Actúa responsablemente</h3>
+                    <p>
+                        No retires ni traslades plantas acuáticas por tu cuenta
+                        sin conocer las recomendaciones locales.
+                    </p>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p><strong>Proyecto de monitoreo de lirios acuáticos</strong></p>
+        <p>Tecnología al servicio del cuidado ambiental.</p>
+    </footer>
 </body>
 </html>
 """
 
 
 def obtener_fotos():
-    """Consulta en Cloudinary las fotografías guardadas por el detector."""
-    resultado = cloudinary.api.resources(
-        resource_type="image",
-        type="upload",
-        prefix="lirios/",
-        max_results=100
-    )
-
-    fotos = []
-
-    for recurso in resultado.get("resources", []):
-        public_id = recurso.get("public_id", "")
-        nombre = public_id.rsplit("/", 1)[-1]
-
-        # Nombre esperado:
-        # Lirio_20261024_154500_123456
-        coincidencia = re.fullmatch(
-            r"Lirio_(\d{8})_(\d{6})_(\d{6})",
-            nombre
+    try:
+        respuesta = cloudinary.api.resources(
+            resource_type="image",
+            type="upload",
+            prefix="lirios/",
+            max_results=100
         )
 
-        if coincidencia:
-            fecha_dt = datetime.strptime(
-                nombre, "Lirio_%Y%m%d_%H%M%S_%f"
+        fotos = []
+
+        for recurso in respuesta.get("resources", []):
+            nombre = recurso.get("filename", "")
+            coincidencia = re.search(
+                r"Lirio_(\d{8})_(\d{6})_(\d{6})",
+                nombre
             )
-            fecha = fecha_dt.strftime("%d/%m/%Y %H:%M:%S")
-        else:
-            fecha = recurso.get("created_at", "Fecha no disponible")
 
-        fotos.append({
-            "url": recurso["secure_url"],
-            "fecha": fecha,
-            "creada": recurso.get("created_at", "")
-        })
+            if coincidencia:
+                try:
+                    fecha = datetime.strptime(
+                        "_".join(coincidencia.groups()),
+                        "%Y%m%d_%H%M%S_%f"
+                    )
+                    fecha_texto = fecha.strftime("%d/%m/%Y %H:%M:%S")
+                except ValueError:
+                    fecha_texto = "Fecha no disponible"
+            else:
+                fecha_texto = "Fecha no disponible"
 
-    fotos.sort(key=lambda f: f["creada"], reverse=True)
-    return fotos
+            fotos.append({
+                "url": recurso.get("secure_url", ""),
+                "fecha": fecha_texto,
+                "creada": recurso.get("created_at", "")
+            })
+
+        fotos.sort(
+            key=lambda foto: foto["creada"],
+            reverse=True
+        )
+
+        return fotos
+
+    except Exception as error:
+        app.logger.exception("Error al obtener fotografías de Cloudinary")
+        return []
 
 
 @app.route("/")
 def inicio():
-    try:
-        fotos = obtener_fotos()
-    except Exception:
-        app.logger.exception("No se pudieron consultar las imágenes")
-        fotos = []
-
+    fotos = obtener_fotos()
     return render_template_string(HTML, fotos=fotos)
 
 
 @app.route("/api/detections", methods=["POST"])
 def recibir_deteccion():
-    # Solo el programa detector puede subir nuevas fotografías.
-    # Las visitas a la galería siguen siendo públicas.
     if not DETECTOR_TOKEN:
-        return jsonify({"error": "Falta configurar DETECTOR_TOKEN"}), 500
+        return jsonify({
+            "error": "El servidor no tiene configurado DETECTOR_TOKEN"
+        }), 500
 
     token = request.headers.get("X-Detector-Token", "")
+
     if token != DETECTOR_TOKEN:
         return jsonify({"error": "No autorizado"}), 401
 
-    imagen = request.files.get("image")
-    nombre = request.form.get("filename", "")
+    nombre = request.form.get("filename", "").strip()
 
-    if not imagen or not nombre:
-        return jsonify({
-            "error": "Falta la imagen o el nombre del archivo"
-        }), 400
-
-    # Solo aceptar nombres generados por el detector.
     if not re.fullmatch(
-        r"Lirio_\d{8}_\d{6}_\d{6}\.jpg", nombre
+        r"Lirio_\d{8}_\d{6}_\d{6}\.jpg",
+        nombre
     ):
-        return jsonify({"error": "Nombre de archivo no válido"}), 400
+        return jsonify({"error": "Nombre de archivo inválido"}), 400
 
     try:
-        public_id = "lirios/" + nombre[:-4]
-
-        resultado = cloudinary.uploader.upload(
-            imagen,
+        archivo = cloudinary.uploader.upload(
+            request.files["file"] if "file" in request.files
+            else request.files.get("imagen"),
+            public_id=f"lirios/{nombre.rsplit('.', 1)[0]}",
             resource_type="image",
-            public_id=public_id,
             overwrite=False
         )
 
         return jsonify({
-            "mensaje": "Fotografía publicada",
-            "url": resultado["secure_url"],
-            "public_id": resultado["public_id"]
+            "mensaje": "Fotografía recibida correctamente",
+            "url": archivo.get("secure_url")
         }), 201
 
+    except (KeyError, TypeError):
+        return jsonify({"error": "No se recibió ninguna fotografía"}), 400
+
     except Exception:
-        app.logger.exception("Error al subir la fotografía")
-        return jsonify({"error": "No se pudo subir la imagen"}), 500
+        app.logger.exception("Error al guardar la fotografía")
+        return jsonify({"error": "No se pudo guardar la fotografía"}), 500
 
 
 @app.route("/api/detections", methods=["GET"])
 def listar_detecciones():
-    # Este endpoint es público y no requiere token.
-    try:
-        return jsonify(obtener_fotos())
-    except Exception:
-        app.logger.exception("Error al consultar las detecciones")
-        return jsonify({"error": "No se pudieron consultar las imágenes"}), 500
+    fotos = obtener_fotos()
+    return jsonify([
+        {
+            "url": foto["url"],
+            "fecha": foto["fecha"]
+        }
+        for foto in fotos
+    ])
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        debug=False
+    )
