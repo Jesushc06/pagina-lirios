@@ -10,10 +10,12 @@ from flask import Flask, request, jsonify, render_template_string
 
 app = Flask(__name__)
 
-# Zona horaria de Chiapas, México.
+# ==========================================
+# 1. CONFIGURACION
+# ==========================================
+
 ZONA_HORARIA = ZoneInfo("America/Mexico_City")
 
-# Configuración de Cloudinary mediante las variables de entorno de Render.
 cloudinary.config(
     cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
     api_key=os.environ.get("CLOUDINARY_API_KEY"),
@@ -22,6 +24,10 @@ cloudinary.config(
 )
 
 DETECTOR_TOKEN = os.environ.get("DETECTOR_TOKEN", "")
+
+# ==========================================
+# 2. PAGINA WEB
+# ==========================================
 
 HTML = """
 <!DOCTYPE html>
@@ -478,6 +484,10 @@ HTML = """
 """
 
 
+# ==========================================
+# 3. OBTENER FOTOGRAFIAS DE CLOUDINARY
+# ==========================================
+
 def obtener_fotos():
     try:
         respuesta = cloudinary.api.resources(
@@ -493,7 +503,6 @@ def obtener_fotos():
             nombre = recurso.get("filename", "")
             fecha = None
 
-            # Intentar obtener fecha y hora del nombre del archivo.
             coincidencia = re.search(
                 r"Lirio_(\d{8})_(\d{6})_(\d{6})",
                 nombre
@@ -501,8 +510,6 @@ def obtener_fotos():
 
             if coincidencia:
                 try:
-                    # IMPORTANTE:
-                    # Esta fecha se interpreta como hora local de Chiapas.
                     fecha = datetime.strptime(
                         "_".join(coincidencia.groups()),
                         "%Y%m%d_%H%M%S_%f"
@@ -510,7 +517,6 @@ def obtener_fotos():
                 except ValueError:
                     fecha = None
 
-            # Si no hay fecha válida en el nombre, utilizar Cloudinary.
             if fecha is None:
                 creada = recurso.get("created_at", "")
 
@@ -530,7 +536,9 @@ def obtener_fotos():
                     fecha = None
 
             if fecha is not None:
-                fecha_texto = fecha.strftime("%d/%m/%Y %I:%M:%S %p")
+                fecha_texto = fecha.strftime(
+                    "%d/%m/%Y %I:%M:%S %p"
+                )
                 orden = fecha.timestamp()
             else:
                 fecha_texto = "Fecha no disponible"
@@ -556,11 +564,19 @@ def obtener_fotos():
         return []
 
 
+# ==========================================
+# 4. PAGINA PRINCIPAL
+# ==========================================
+
 @app.route("/")
 def inicio():
     fotos = obtener_fotos()
     return render_template_string(HTML, fotos=fotos)
 
+
+# ==========================================
+# 5. RECIBIR FOTOGRAFIAS DEL DETECTOR
+# ==========================================
 
 @app.route("/api/detections", methods=["POST"])
 def recibir_deteccion():
@@ -580,11 +596,21 @@ def recibir_deteccion():
         r"Lirio_\d{8}_\d{6}_\d{6}\.jpg",
         nombre
     ):
-        return jsonify({"error": "Nombre de archivo inválido"}), 400
+        return jsonify({
+            "error": "Nombre de archivo inválido o ausente"
+        }), 400
 
-    archivo = request.files.get("file") or request.files.get("imagen")
+    # CORRECCION: aceptar "image", que es el campo
+    # que utiliza el detector actual.
+    archivo = (
+        request.files.get("image")
+        or request.files.get("file")
+        or request.files.get("imagen")
+        or request.files.get("foto")
+        or request.files.get("archivo")
+    )
 
-    if archivo is None:
+    if archivo is None or not archivo.filename:
         return jsonify({
             "error": "No se recibió ninguna fotografía"
         }), 400
@@ -603,11 +629,17 @@ def recibir_deteccion():
         }), 201
 
     except Exception:
-        app.logger.exception("Error al guardar la fotografía")
+        app.logger.exception(
+            "Error al guardar la fotografía en Cloudinary"
+        )
         return jsonify({
             "error": "No se pudo guardar la fotografía"
         }), 500
 
+
+# ==========================================
+# 6. CONSULTAR DETECCIONES
+# ==========================================
 
 @app.route("/api/detections", methods=["GET"])
 def listar_detecciones():
@@ -621,6 +653,10 @@ def listar_detecciones():
         for foto in fotos
     ])
 
+
+# ==========================================
+# 7. INICIAR SERVIDOR
+# ==========================================
 
 if __name__ == "__main__":
     app.run(
