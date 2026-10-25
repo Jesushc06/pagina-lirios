@@ -35,7 +35,6 @@ HTML = """
             --verde-claro: #eaf6ee;
             --azul: #eaf5fb;
             --texto: #24352b;
-            --blanco: #ffffff;
         }
 
         * {
@@ -87,10 +86,11 @@ HTML = """
         .hero {
             padding: 85px 7%;
             color: white;
-            background:
-                linear-gradient(120deg, rgba(10, 65, 43, .94),
-                rgba(23, 107, 69, .79)),
-                linear-gradient(45deg, #247d53, #8bbf8b);
+            background: linear-gradient(
+                120deg,
+                rgba(10, 65, 43, .94),
+                rgba(23, 107, 69, .79)
+            );
             text-align: center;
         }
 
@@ -486,10 +486,14 @@ def obtener_fotos():
 
         for recurso in respuesta.get("resources", []):
             nombre = recurso.get("filename", "")
+
+            # Primero intenta obtener la fecha del nombre de la fotografía.
             coincidencia = re.search(
                 r"Lirio_(\d{8})_(\d{6})_(\d{6})",
                 nombre
             )
+
+            fecha_texto = "Fecha no disponible"
 
             if coincidencia:
                 try:
@@ -499,9 +503,19 @@ def obtener_fotos():
                     )
                     fecha_texto = fecha.strftime("%d/%m/%Y %H:%M:%S")
                 except ValueError:
-                    fecha_texto = "Fecha no disponible"
-            else:
-                fecha_texto = "Fecha no disponible"
+                    pass
+
+            # Si no hay fecha válida en el nombre, utiliza la fecha de Cloudinary.
+            if fecha_texto == "Fecha no disponible":
+                creada = recurso.get("created_at", "")
+
+                try:
+                    fecha = datetime.fromisoformat(
+                        creada.replace("Z", "+00:00")
+                    )
+                    fecha_texto = fecha.strftime("%d/%m/%Y %H:%M:%S")
+                except (ValueError, TypeError, AttributeError):
+                    pass
 
             fotos.append({
                 "url": recurso.get("secure_url", ""),
@@ -516,7 +530,7 @@ def obtener_fotos():
 
         return fotos
 
-    except Exception as error:
+    except Exception:
         app.logger.exception("Error al obtener fotografías de Cloudinary")
         return []
 
@@ -547,10 +561,14 @@ def recibir_deteccion():
     ):
         return jsonify({"error": "Nombre de archivo inválido"}), 400
 
+    archivo = request.files.get("file") or request.files.get("imagen")
+
+    if archivo is None:
+        return jsonify({"error": "No se recibió ninguna fotografía"}), 400
+
     try:
-        archivo = cloudinary.uploader.upload(
-            request.files["file"] if "file" in request.files
-            else request.files.get("imagen"),
+        resultado = cloudinary.uploader.upload(
+            archivo,
             public_id=f"lirios/{nombre.rsplit('.', 1)[0]}",
             resource_type="image",
             overwrite=False
@@ -558,11 +576,8 @@ def recibir_deteccion():
 
         return jsonify({
             "mensaje": "Fotografía recibida correctamente",
-            "url": archivo.get("secure_url")
+            "url": resultado.get("secure_url")
         }), 201
-
-    except (KeyError, TypeError):
-        return jsonify({"error": "No se recibió ninguna fotografía"}), 400
 
     except Exception:
         app.logger.exception("Error al guardar la fotografía")
@@ -572,6 +587,7 @@ def recibir_deteccion():
 @app.route("/api/detections", methods=["GET"])
 def listar_detecciones():
     fotos = obtener_fotos()
+
     return jsonify([
         {
             "url": foto["url"],
